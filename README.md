@@ -333,7 +333,7 @@ COMPOSE_FILE=./docker-compose.yaml docker-service uninstall-service
 
 ## License
 
-MIT License - see LICENSE file for details.
+GPL3 - see LICENSE file for details.
 
 ## Changelog
 
