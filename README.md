@@ -41,6 +41,18 @@ mv docker-service ~/.local/bin/
 ./docker-service ensure-path
 ```
 
+OR
+
+1. Clone the repository:
+```bash
+git clone https://github.com/jwhutchison/docker-service.git
+```
+
+2. Link the `docker-service` binary to your PATH:
+```bash
+ln -s ~/path/to/docker-service/docker-service ~/.local/bin/docker-service
+```
+
 ## Setup
 
 ### Creating Your First Service
