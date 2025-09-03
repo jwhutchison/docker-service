@@ -228,6 +228,9 @@ systemctl --user status docker-service-your-app
 ### Installing yq
 
 ```bash
+# Arch
+sudo pacman -S go-yq
+
 # Ubuntu/Debian
 sudo apt install yq
 
