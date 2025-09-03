@@ -1,0 +1,9 @@
+services:
+  your-app:
+    container_name: your-app
+    image: your-org/your-app:latest
+    volumes:
+      - ./data:/data
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

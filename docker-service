@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+DEBUG=${DEBUG:-0}
+if [[ "$DEBUG" == "1" ]]; then
+    set -x
+fi
+
+# Check for yq
+if ! command -v yq &> /dev/null; then
+    echo "🛑 yq is required but not installed" >&2
+    echo "Install it with with your package manager (see https://github.com/mikefarah/yq)" >&2
+    exit 1
+fi
+
+# Get compose file first and validate it exists (allow help and usage commands without this)
+COMPOSE_FILE="${DOCKER_COMPOSE_FILE:-$PWD/docker-compose.yaml}"
+if [[ -d "$COMPOSE_FILE" ]]; then
+    COMPOSE_FILE="$COMPOSE_FILE/docker-compose.yaml"
+fi
+if [[ ! -f "$COMPOSE_FILE" ]] && [[ ! "$1" =~ ^(help|usage|ensure-path)$ ]]; then
+    echo "🛑 Compose file not found at $COMPOSE_FILE" >&2
+    echo "Set DOCKER_COMPOSE_FILE environment variable to specify location" >&2
+    exit 1
+fi
+
+# Get root from the base directory of compose file (skip if no compose file)
+if [[ -f "$COMPOSE_FILE" ]]; then
+    COMPOSE_FILE="$(realpath "$COMPOSE_FILE")"
+    BASE_DIR="$( cd "$( dirname "$COMPOSE_FILE" )" && pwd )"
+    ENV_FILE="$BASE_DIR/.env"
+fi
+
+compose_cmd () {
+    if [[ -f "$ENV_FILE" ]]; then
+        docker compose --env-file "$ENV_FILE" --file "$COMPOSE_FILE" "$@"
+    else
+        docker compose --file "$COMPOSE_FILE" "$@"
+    fi
+}
+
+get_service_name () {
+    # Get the service name from the first service in the compose file
+    yq eval '.services | to_entries | .[0].key' "$COMPOSE_FILE"
+}
+
+get_image_name () {
+    # Get the image name from the first service in the compose file
+    yq eval '.services | to_entries | .[0].value.image' "$COMPOSE_FILE"
+}
+
+get_container_name () {
+    # Try to get container_name from the first service, fall back to service name
+    yq eval '.services | to_entries | .[0].value.container_name // .[0].key' "$COMPOSE_FILE"
+}
+
+get_port () {
+    # Get the first exposed port from the first service
+    local port_mapping=$(yq eval '.services | to_entries | .[0].value.ports[0]' "$COMPOSE_FILE")
+    # Extract the host port (before the colon)
+    echo "$port_mapping" | cut -d':' -f1 | sed 's/"//g'
+}
+
+get_container_id () {
+    local container_name=$(get_container_name)
+    echo $(docker ps -q --filter "name=$container_name")
+}
+
+is_running () {
+    [[ -n "$(get_container_id)" ]] && return 0 || return 1
+}
+
+install_user_service () {
+    local container_name=$(get_container_name)
+    local service_name="docker-service-$container_name"
+    local service_dir="$HOME/.config/systemd/user"
+    local service_file="$service_dir/$service_name.service"
+
+    # Check for systemctl
+    if ! command -v systemctl &> /dev/null; then
+        echo "🛑 systemctl is required but not found" >&2
+        echo "This feature only works on systemd-based operating systems" >&2
+        exit 1
+    fi
+
+    # Check if service already exists
+    if [[ -f "$service_file" ]]; then
+        echo "🛑 Service $service_name already exists at $service_file" >&2
+        echo "Use uninstall-service first to remove the existing service" >&2
+        exit 1
+    fi
+
+    # Ask for confirmation
+    echo "This will install the Docker container as a user service:"
+    echo "  - Service name: $service_name"
+    echo "  - Container: $container_name"
+    echo "  - Compose file: $COMPOSE_FILE"
+    echo "  - Service file: $service_file"
+    echo
+    read -p "Continue? (y/N): " -r
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled."
+        exit 0
+    fi
+
+    # Create systemd user directory if it doesn't exist
+    mkdir -p "$service_dir"
+
+    # Create the service file
+    cat > "$service_file" << EOF
+[Unit]
+Description=Docker Service for $container_name
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+Environment=DOCKER_COMPOSE_FILE=$COMPOSE_FILE
+ExecStart=$(realpath "$0") start
+ExecStop=$(realpath "$0") stop
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target
+EOF
+
+    # Reload systemd
+    systemctl --user daemon-reload
+
+    echo "✅ User service $service_name installed successfully!"
+    echo
+    read -p "Start and enable the service now? (Y/n): " -r
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        echo "   Start with: systemctl --user start $service_name"
+        echo "   Enable auto-start: systemctl --user enable $service_name"
+    else
+        systemctl --user enable "$service_name"
+        systemctl --user start "$service_name"
+        echo "🚀 Service started and enabled for auto-start!"
+    fi
+}
+
+uninstall_user_service () {
+    local container_name=$(get_container_name)
+    local service_name="docker-service-$container_name"
+    local service_file="$HOME/.config/systemd/user/$service_name.service"
+
+    # Check for systemctl
+    if ! command -v systemctl &> /dev/null; then
+        echo "🛑 systemctl is required but not found" >&2
+        echo "This feature only works on systemd-based operating systems" >&2
+        exit 1
+    fi
+
+    # Check if service exists
+    if [[ ! -f "$service_file" ]]; then
+        echo "⚠️ Service $service_name not found at $service_file" >&2
+        exit 1
+    fi
+
+    # Stop and disable the service
+    systemctl --user stop "$service_name" 2>/dev/null || true
+    systemctl --user disable "$service_name" 2>/dev/null || true
+
+    # Remove the service file
+    rm -f "$service_file"
+
+    # Reload systemd
+    systemctl --user daemon-reload
+
+    echo "✅ User service $service_name uninstalled successfully!"
+}
+
+ensure_path () {
+    local script_path="$(realpath "$0")"
+    local script_dir="$(dirname "$script_path")"
+    local script_name="$(basename "$0")"
+
+    # Check if script is already in PATH
+    if command -v "$script_name" &> /dev/null && [[ "$(command -v "$script_name")" == "$script_path" ]]; then
+        echo "✅ Script is already available in PATH at: $script_path"
+        return 0
+    fi
+
+    # Find user's shell profile file
+    local profile_file=""
+    if [[ -n "$BASH_VERSION" ]]; then
+        if [[ -f "$HOME/.bashrc" ]]; then
+            profile_file="$HOME/.bashrc"
+        elif [[ -f "$HOME/.bash_profile" ]]; then
+            profile_file="$HOME/.bash_profile"
+        fi
+    elif [[ -n "$ZSH_VERSION" ]]; then
+        if [[ -f "$HOME/.zshrc" ]]; then
+            profile_file="$HOME/.zshrc"
+        fi
+    fi
+
+    # Fallback to .profile if no specific shell profile found
+    if [[ -z "$profile_file" && -f "$HOME/.profile" ]]; then
+        profile_file="$HOME/.profile"
+    fi
+
+    # If still no profile file, create .profile
+    if [[ -z "$profile_file" ]]; then
+        profile_file="$HOME/.profile"
+        echo "# Created by docker-service script" > "$profile_file"
+    fi
+
+    echo "" >> "$profile_file"
+    echo "# Added by docker-service script" >> "$profile_file"
+    echo "export PATH=\"$script_dir:\$PATH\"" >> "$profile_file"
+
+    echo "✅ Added $script_dir to PATH in $profile_file"
+    echo "   Restart your shell or run: source $profile_file"
+    echo "   Then you can use: $script_name"
+}
+
+doctor_cmd () {
+    local container_name=$(get_container_name)
+    local image_name=$(get_image_name)
+    local port=$(get_port)
+
+    echo "⚙️ Current script config:"
+    echo "  - Using Docker $(docker version --format '{{.Server.Version}}')"
+    echo "  - Compose file: $COMPOSE_FILE"
+    echo "  - Env file:     $ENV_FILE"
+    echo "  - Container:    $container_name [$(get_container_id)]"
+    echo "  - Image:        $image_name"
+    echo "  - Port:         $port"
+    echo "  - Is running:   $(is_running && echo 'yes' || echo 'no')"
+    echo
+
+    if [[ ! -f "$ENV_FILE" ]]; then
+        echo "⚠  No .env file found at $ENV_FILE"
+    else
+        echo "⚙️ Contents of .env:"
+        grep -Ev '^\s*#' "$ENV_FILE" || true
+    fi
+    echo
+
+    echo "🧪 Resolved compose config (first 10 lines):"
+    compose_cmd config "$(get_service_name)" | head -n 10
+    echo
+
+    if is_running; then
+        echo "💻 Env inside running $container_name (first 10 lines):"
+        docker exec -it "$container_name" env | sort | head -n 10
+    else
+        echo "⚠️ Container not running, skipping runtime env check."
+    fi
+}
+
+usage () {
+    echo "Usage: $(basename "$0") {open|start|stop|restart|update|status|logs|bash|doctor|install-service|uninstall-service|ensure-path}"
+    echo ""
+    echo "Environment variables:"
+    echo "  DOCKER_COMPOSE_FILE  - Path to docker-compose.yaml (default: ./docker-compose.yaml)"
+    echo "                         REQUIRED for all commands except help, usage, and ensure-path"
+    exit 1
+}
+
+case "${1:-open}" in
+    help|usage)
+        usage
+        ;;
+    ensure-path)
+        ensure_path
+        ;;
+    doctor)
+        doctor_cmd
+        ;;
+    config)
+        compose_cmd config
+        ;;
+    update)
+        local image_name=$(get_image_name)
+        echo "Updating image: $image_name"
+        docker pull "$image_name"
+        ;;
+    open)
+        if ! is_running; then
+            echo "Starting service..."
+            ${0} start "${2:-}"
+        fi
+        port=$(get_port)
+        xdg-open "http://localhost:$port" || open "http://localhost:$port"
+        ;;
+    start|up)
+        is_running && { echo "Already running."; exit 0; }
+
+        # If a profile is specified, use it
+        if [[ -n "${2:-}" ]]; then
+            compose_cmd --profile "$2" up -d
+        else
+            compose_cmd up -d
+        fi
+        ;;
+    stop|down)
+        compose_cmd down "$(get_container_name)" || echo "Not running."
+        ;;
+    restart|hup)
+        compose_cmd stop "$(get_container_name)"
+        ${0} start "${2:-}"
+        ;;
+    status)
+        is_running && docker ps --filter "name=$(get_container_name)" || echo "Not running."
+        ;;
+    logs)
+        is_running && docker logs -f "$(get_container_name)" || echo "Not running."
+        ;;
+    bash|shell|sh)
+        is_running && docker exec -it "$(get_container_name)" /bin/bash || echo "Not running."
+        ;;
+    install-service)
+        install_user_service
+        ;;
+    uninstall-service)
+        uninstall_user_service
+        ;;
+    *)
+        usage
+        ;;
+esac
