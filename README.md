@@ -70,7 +70,7 @@ cd ~/my-awesome-app
 **Option A: Use an alias**
 ```bash
 # Add to your shell profile (.bashrc, .zshrc, etc.)
-alias my-app='DOCKER_COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml docker-service'
+alias my-app='COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml docker-service'
 
 # Usage
 my-app start
@@ -83,7 +83,7 @@ my-app logs
 # Create ~/bin/my-app
 cat > ~/bin/my-app << 'EOF'
 #!/bin/bash
-export DOCKER_COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml
+export COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml
 exec docker-service "$@"
 EOF
 chmod +x ~/bin/my-app
@@ -97,10 +97,10 @@ my-app install-service
 **Option C: Use environment variable**
 ```bash
 # Export in your current session
-export DOCKER_COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml
+export COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml
 
 # Or add to your shell profile for permanent use
-echo 'export DOCKER_COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml' >> ~/.bashrc
+echo 'export COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml' >> ~/.bashrc
 ```
 
 ## Usage
@@ -109,44 +109,44 @@ echo 'export DOCKER_COMPOSE_FILE=~/my-awesome-app/docker-compose.yaml' >> ~/.bas
 
 ```bash
 # Start your service
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service start
+COMPOSE_FILE=/path/to/compose.yaml docker-service start
 
 # Stop your service
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service stop
+COMPOSE_FILE=/path/to/compose.yaml docker-service stop
 
 # Restart your service
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service restart
+COMPOSE_FILE=/path/to/compose.yaml docker-service restart
 
 # Check status
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service status
+COMPOSE_FILE=/path/to/compose.yaml docker-service status
 
 # View logs (follow mode)
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service logs
+COMPOSE_FILE=/path/to/compose.yaml docker-service logs
 
 # Open service in browser
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service open
+COMPOSE_FILE=/path/to/compose.yaml docker-service open
 
 # Get shell access
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service bash
+COMPOSE_FILE=/path/to/compose.yaml docker-service bash
 ```
 
 ### Advanced Commands
 
 ```bash
 # Show detailed configuration and health info
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service doctor
+COMPOSE_FILE=/path/to/compose.yaml docker-service doctor
 
 # Update service image
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service update
+COMPOSE_FILE=/path/to/compose.yaml docker-service update
 
 # Show resolved compose configuration
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service config
+COMPOSE_FILE=/path/to/compose.yaml docker-service config
 
 # Install as systemd user service
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service install-service
+COMPOSE_FILE=/path/to/compose.yaml docker-service install-service
 
 # Remove systemd user service
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service uninstall-service
+COMPOSE_FILE=/path/to/compose.yaml docker-service uninstall-service
 
 # Add script to PATH
 docker-service ensure-path
@@ -161,29 +161,29 @@ Use Docker Compose profiles to run different configurations:
 
 ```bash
 # Start with GPU profile
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service start gpu
+COMPOSE_FILE=/path/to/compose.yaml docker-service start gpu
 
 # Start with CPU profile
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service start cpu
+COMPOSE_FILE=/path/to/compose.yaml docker-service start cpu
 
 # Restart with different profile
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service restart gpu
+COMPOSE_FILE=/path/to/compose.yaml docker-service restart gpu
 ```
 
 ## Configuration
 
 ### Environment Variables
 
-- `DOCKER_COMPOSE_FILE`: Path to your docker-compose.yaml file (default: `./docker-compose.yaml`)
+- `COMPOSE_FILE`: Path to your docker-compose.yaml file (default: `./docker-compose.yaml`)
 
 ### Example Usage
 
 ```bash
 # Use a specific compose file
-DOCKER_COMPOSE_FILE=/path/to/my-compose.yaml docker-service start
+COMPOSE_FILE=/path/to/my-compose.yaml docker-service start
 
 # Or export it
-export DOCKER_COMPOSE_FILE=/path/to/my-compose.yaml
+export COMPOSE_FILE=/path/to/my-compose.yaml
 docker-service start
 ```
 
@@ -209,7 +209,7 @@ Install your Docker service as a systemd user service for automatic startup:
 
 ```bash
 # Install as user service
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service install-service
+COMPOSE_FILE=/path/to/compose.yaml docker-service install-service
 
 # The service will be named: docker-service-{container-name}
 # Control with standard systemctl commands:
@@ -249,7 +249,7 @@ sudo chmod +x /usr/local/bin/yq
 Use the `doctor` command to diagnose issues:
 
 ```bash
-DOCKER_COMPOSE_FILE=/path/to/compose.yaml docker-service doctor
+COMPOSE_FILE=/path/to/compose.yaml docker-service doctor
 ```
 
 This shows:
@@ -269,7 +269,7 @@ docker-service ensure-path
 
 **Compose file not found**:
 ```bash
-export DOCKER_COMPOSE_FILE=/path/to/your/docker-compose.yaml
+export COMPOSE_FILE=/path/to/your/docker-compose.yaml
 ```
 
 **Permission denied**:
@@ -298,10 +298,10 @@ services:
 ```
 
 ```bash
-DOCKER_COMPOSE_FILE=./docker-compose.yaml docker-service start    # Start nginx
-DOCKER_COMPOSE_FILE=./docker-compose.yaml docker-service open     # Open http://localhost:8080 in browser
-DOCKER_COMPOSE_FILE=./docker-compose.yaml docker-service logs     # View nginx logs
-DOCKER_COMPOSE_FILE=./docker-compose.yaml docker-service bash     # Get shell in container
+COMPOSE_FILE=./docker-compose.yaml docker-service start    # Start nginx
+COMPOSE_FILE=./docker-compose.yaml docker-service open     # Open http://localhost:8080 in browser
+COMPOSE_FILE=./docker-compose.yaml docker-service logs     # View nginx logs
+COMPOSE_FILE=./docker-compose.yaml docker-service bash     # Get shell in container
 ```
 
 ## Development
@@ -320,15 +320,15 @@ Test the script with various Docker Compose files:
 
 ```bash
 # Test basic functionality
-DOCKER_COMPOSE_FILE=./docker-compose.yaml docker-service doctor
+COMPOSE_FILE=./docker-compose.yaml docker-service doctor
 
 # Test with different compose files
-DOCKER_COMPOSE_FILE=./test-compose.yaml docker-service start
+COMPOSE_FILE=./test-compose.yaml docker-service start
 
 # Test systemd integration
-DOCKER_COMPOSE_FILE=./docker-compose.yaml docker-service install-service
+COMPOSE_FILE=./docker-compose.yaml docker-service install-service
 systemctl --user status docker-service-test-container
-DOCKER_COMPOSE_FILE=./docker-compose.yaml docker-service uninstall-service
+COMPOSE_FILE=./docker-compose.yaml docker-service uninstall-service
 ```
 
 ## License

@@ -14,13 +14,13 @@ if ! command -v yq &> /dev/null; then
 fi
 
 # Get compose file first and validate it exists (allow help and usage commands without this)
-COMPOSE_FILE="${DOCKER_COMPOSE_FILE:-$PWD/docker-compose.yaml}"
+COMPOSE_FILE="${COMPOSE_FILE:-$PWD/docker-compose.yaml}"
 if [[ -d "$COMPOSE_FILE" ]]; then
     COMPOSE_FILE="$COMPOSE_FILE/docker-compose.yaml"
 fi
 if [[ ! -f "$COMPOSE_FILE" ]] && [[ ! "$1" =~ ^(help|usage|ensure-path)$ ]]; then
     echo "🛑 Compose file not found at $COMPOSE_FILE" >&2
-    echo "Set DOCKER_COMPOSE_FILE environment variable to specify location" >&2
+    echo "Set COMPOSE_FILE environment variable to specify location" >&2
     exit 1
 fi
 
@@ -116,7 +116,7 @@ After=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=true
-Environment=DOCKER_COMPOSE_FILE=$COMPOSE_FILE
+Environment=COMPOSE_FILE=$COMPOSE_FILE
 ExecStart=$(realpath "$0") start
 ExecStop=$(realpath "$0") stop
 TimeoutStartSec=0
@@ -253,10 +253,12 @@ doctor_cmd () {
 }
 
 usage () {
-    echo "Usage: $(basename "$0") {open|start|stop|restart|update|status|logs|bash|doctor|install-service|uninstall-service|ensure-path}"
+    echo "Usage:"
+    echo "Normal commands: $(basename "$0") {open|start|stop|restart|update|status|logs|bash}"
+    echo "Special commands: $(basename "$0") {doctor|install-service|uninstall-service|ensure-path|help}"
     echo ""
     echo "Environment variables:"
-    echo "  DOCKER_COMPOSE_FILE  - Path to docker-compose.yaml (default: ./docker-compose.yaml)"
+    echo "  COMPOSE_FILE  - Path to docker-compose.yaml (default: ./docker-compose.yaml)"
     echo "                         REQUIRED for all commands except help, usage, and ensure-path"
     exit 1
 }
